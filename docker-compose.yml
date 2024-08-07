@@ -5,7 +5,7 @@ services:
     depends_on:
       overhang-backend-config:
         condition: service_healthy
-      overhang-backend-discovery:
+      overhang-backend-registry:
         condition: service_healthy
     environment:
       - POSTGRES_PASSWORD=postgres
@@ -31,7 +31,7 @@ services:
     depends_on:
       overhang-backend-config:
         condition: service_healthy
-      overhang-backend-discovery:
+      overhang-backend-registry:
         condition: service_healthy
       overhang-backend-auth:
         condition: service_healthy
@@ -57,7 +57,7 @@ services:
       overhang-backend-config:
         condition: service_healthy
         restart: true
-      overhang-backend-discovery:
+      overhang-backend-registry:
         condition: service_healthy
         restart: true
       postgres:
@@ -72,13 +72,13 @@ services:
     networks:
       - overhang-network
 
-  overhang-backend-discovery:
+  overhang-backend-registry:
     build:
-      context: ../overhang-backend-discovery
+      context: ../overhang-backend-registry
       dockerfile: Dockerfile
       args:
         SKIP_TESTS: true
-    container_name: overhang-backend-discovery
+    container_name: overhang-backend-registry
     expose:
       - "8761"
     environment:
