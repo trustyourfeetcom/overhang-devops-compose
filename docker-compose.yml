@@ -28,6 +28,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - SPRING_CONFIG_IMPORT=http://overhang-backend-config:8888/
+      - AUTH_SERVICE_URL=http://overhang-backend-auth:8081/
     depends_on:
       overhang-backend-config:
         condition: service_healthy
@@ -35,7 +36,6 @@ services:
         condition: service_healthy
       overhang-backend-auth:
         condition: service_healthy
-        restart: true
     networks:
       - overhang-network
 
