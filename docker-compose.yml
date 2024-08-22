@@ -1,7 +1,7 @@
 services:
   postgres:
-    image: postgres
     container_name: postgres
+    image: postgres
     depends_on:
       overhang-backend-config:
         condition: service_healthy
@@ -9,8 +9,36 @@ services:
       - POSTGRES_PASSWORD=postgres
     expose:
       - "5432"
+    networks:
+      - overhang-network
     volumes:
       - ./db/init:/docker-entrypoint-initdb.d/
+
+  zookeeper:
+    image: bitnami/zookeeper
+    container_name: zookeeper
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    expose:
+      - "2181"
+    networks:
+      - overhang-network
+
+  kafka:
+    container_name: kafka
+    image: bitnami/kafka
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    expose:
+      - "9092"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - zookeeper
     networks:
       - overhang-network
 
@@ -27,10 +55,13 @@ services:
       - SPRING_PROFILES_ACTIVE=dev
       - SPRING_CONFIG_IMPORT=http://overhang-backend-config:8888/
       - AUTH_SERVICE_URL=http://overhang-backend-auth:8081/
+      - IDENTITY_SERVICE_URL=http://overhang-backend-identity:8082/
     depends_on:
+      overhang-backend-auth:
+        condition: service_healthy
       overhang-backend-config:
         condition: service_healthy
-      overhang-backend-auth:
+      overhang-backend-identity:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-sS", "http://localhost:8080/actuator/health"]
@@ -51,11 +82,15 @@ services:
     expose:
       - "8081"
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - SPRING_CONFIG_IMPORT=http://overhang-backend-config:8888/
       - JWT_EXPIRATION=86400000 # 1 day
       - JWT_SECRET=0c39f331f68026adb5226e297264f4818490350fbb72b5ac6a7d36d75ef75943 # Dummy secret
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_CONFIG_IMPORT=http://overhang-backend-config:8888/
     depends_on:
+      kafka:
+        condition: service_started
+        restart: true
       overhang-backend-config:
         condition: service_healthy
         restart: true
@@ -64,10 +99,42 @@ services:
         restart: true
     healthcheck:
       test: ["CMD", "curl", "-sS", "http://localhost:8081/actuator/health"]
+      interval: 10s 
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - overhang-network
+
+  overhang-backend-identity:
+    build:
+      context: ../overhang-backend-identity
+      dockerfile: Dockerfile
+      args:
+        SKIP_TESTS: true
+    container_name: overhang-backend-identity
+    expose:
+      - "8082"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_CONFIG_IMPORT=http://overhang-backend-config:8888/
+    depends_on:
+      kafka:
+        condition: service_started
+        restart: true
+      overhang-backend-config:
+        condition: service_healthy
+        restart: true
+      postgres:
+        condition: service_started
+        restart: true
+    healthcheck:
+      test: ["CMD", "curl", "-sS", "http://localhost:8082/actuator/health"]
       interval: 10s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 20s
     networks:
       - overhang-network
 
